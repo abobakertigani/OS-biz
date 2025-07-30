@@ -1,0 +1,22 @@
+<!-- modules/restaurant/templates/restaurant/tables.html -->
+<h2>إدارة الطاولات</h2>
+<div id="tables-container">
+  {% for table in tables %}
+  <div class="table {{ 'occupied' if table.status == 'occupied' else 'free' }}">
+    طاولة {{ table.number }}<br>
+    <small>{{ table.status }} - {{ table.capacity }} أشخاص</small>
+  </div>
+  {% else %}
+  <p>لا توجد طاولات</p>
+  {% endfor %}
+</div>
+<style>
+  #tables-container { display: flex; flex-wrap: wrap; }
+  .table {
+    width: 120px; height: 120px; margin: 10px; text-align: center;
+    line-height: 1.4; border-radius: 15px; font-weight: bold;
+    border: 3px solid; cursor: pointer;
+  }
+  .free { background: #d1e7dd; border-color: #198754; }
+  .occupied { background: #f8d7da; border-color: #dc3545; }
+</style>
