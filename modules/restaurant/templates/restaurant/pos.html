@@ -1,0 +1,93 @@
+<!-- modules/restaurant/templates/restaurant/pos.html -->
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>نقطة بيع - مطعم</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .table { display: inline-block; width: 100px; height: 100px; margin: 10px; text-align: center; line-height: 100px; border: 2px solid #007bff; border-radius: 10px; cursor: pointer; }
+        .occupied { background-color: #f8d7da; border-color: #dc3545; }
+        .free { background-color: #d1e7dd; border-color: #198754; }
+        .menu { list-style: none; padding: 0; }
+        .menu li { padding: 8px; margin: 5px 0; background: #f0f0f0; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>نظام نقطة بيع المطعم</h1>
+
+    <h2>الطاولات</h2>
+    <div id="tables">
+        <p>جارٍ تحميل الطاولات...</p>
+    </div>
+
+    <h2>المنيو</h2>
+    <ul id="menu" class="menu"></ul>
+
+    <h2>السلة</h2>
+    <ul id="cart"></ul>
+    <p><strong>المجموع: </strong><span id="total">0</span> ر.س</p>
+    <button onclick="submitOrder()">إتمام الطلب</button>
+
+    <script>
+        let cart = [];
+        const totalSpan = document.getElementById('total');
+
+        // تحميل الطاولات
+        fetch('/restaurant/tables')
+            .then(r => r.text())
+            .then(html => {
+                const temp = document.createElement('div');
+                temp.innerHTML = html;
+                document.getElementById('tables').innerHTML = temp.querySelector('#tables').innerHTML;
+            });
+
+        // تحميل المنيو
+        fetch('/restaurant/menu')
+            .then(r => r.json())
+            .then(items => {
+                const menu = document.getElementById('menu');
+                menu.innerHTML = '';
+                items.forEach(item => {
+                    const li = document.createElement('li');
+                    li.textContent = `${item.name} - ${item.price} ر.س`;
+                    li.onclick = () => addToCart(item);
+                    menu.appendChild(li);
+                });
+            });
+
+        function addToCart(item) {
+            cart.push(item);
+            renderCart();
+        }
+
+        function renderCart() {
+            const cartEl = document.getElementById('cart');
+            cartEl.innerHTML = '';
+            let total = 0;
+            cart.forEach(item => {
+                total += item.price;
+                const li = document.createElement('li');
+                li.textContent = item.name;
+                cartEl.appendChild(li);
+            });
+            totalSpan.textContent = total.toFixed(2);
+        }
+
+        function submitOrder() {
+            const tableId = prompt("أدخل رقم الطاولة:");
+            if (!tableId) return;
+
+            fetch('/restaurant/orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `table_id=${tableId}&items=${encodeURIComponent(JSON.stringify(cart))}&total=${totalSpan.textContent}`
+            }).then(() => {
+                alert('تم إرسال الطلب!');
+                cart = [];
+                renderCart();
+            });
+        }
+    </script>
+</body>
+</html> 
