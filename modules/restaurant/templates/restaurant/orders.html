@@ -1,0 +1,49 @@
+<!-- modules/restaurant/templates/restaurant/orders.html -->
+<h2>الطلبات</h2>
+<table border="1" width="100%">
+  <tr>
+    <th>الرقم</th>
+    <th>الطاولة</th>
+    <th>المجموع</th>
+    <th>الحالة</th>
+    <th>الوقت</th>
+    <th>الإجراءات</th>
+  </tr>
+  {% for row in orders %}
+  <tr>
+    <td>{{ row.id }}</td>
+    <td>{{ row.table_number }}</td>
+    <td>{{ '%.2f' % row.total }} ر.س</td>
+    <td>{{ {
+      'pending': 'قيد الانتظار',
+      'cooking': 'يُطهى',
+      'ready': 'جاهز',
+      'served': 'تم التوصيل',
+      'paid': 'مدفوع'
+    }[row.status] }}</td>
+    <td>{{ row.timestamp.strftime('%H:%M') }}</td>
+    <td>
+      <select onchange="updateStatus({{ row.id }}, this.value)" class="status-select">
+        <option value="pending" {% if row.status == 'pending' %}selected{% endif %}>قيد الانتظار</option>
+        <option value="cooking" {% if row.status == 'cooking' %}selected{% endif %}>يُطهى</option>
+        <option value="ready" {% if row.status == 'ready' %}selected{% endif %}>جاهز</option>
+        <option value="served" {% if row.status == 'served' %}selected{% endif %}>تم التوصيل</option>
+        <option value="paid" {% if row.status == 'paid' %}selected{% endif %}>مدفوع</option>
+      </select>
+      <a href="/restaurant/receipt/{{ row.id }}" target="_blank">🖨️</a>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
+<script>
+function updateStatus(orderId, status) {
+  fetch(`/restaurant/order/${orderId}/status`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: status })
+  }).then(r => r.json()).then(data => {
+    if (!data.success) alert('فشل التحديث');
+  });
+}
+</script>
