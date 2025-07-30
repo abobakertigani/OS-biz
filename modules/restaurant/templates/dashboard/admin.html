@@ -1,0 +1,28 @@
+<!-- templates/dashboard/admin.html -->
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <title>لوحة التحكم - مشرف</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .card { border: 1px solid #ddd; padding: 15px; margin: 10px; width: 200px; display: inline-block; text-align: center; }
+        .header { display: flex; justify-content: space-between; background: #f0f0f0; padding: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>لوحة التحكم</h2>
+        <div>
+            مرحباً، <strong>{{ user.full_name or user.username }}</strong>
+            (<em>{{ 'مشرف' if user.role == 'admin' else user.role }}</em>)
+            | <a href="/auth/logout">تسجيل الخروج</a>
+        </div>
+    </div>
+
+    <div>
+        <a href="/restaurant"><div class="card">🍽️ المطعم</div></a>
+        <a href="/restaurant/manage_orders"><div class="card">📋 الطلبات</div></a>
+        <a href="/restaurant/report/daily"><div class="card">📊 التقارير</div></a>
+    </div>
+</body>
+</html>
