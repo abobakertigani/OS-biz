@@ -1,0 +1,7 @@
+<!-- modules/restaurant/templates/restaurant/report.html -->
+<h2>تقرير يومي - {{ date }}</h2>
+<ul>
+  <li><strong>عدد الطلبات:</strong> {{ num_orders }}</li>
+  <li><strong>إجمالي المبيعات:</strong> {{ '%.2f' % total_sales }} ر.س</li>
+</ul>
+<a href="/restaurant">العودة</a>
