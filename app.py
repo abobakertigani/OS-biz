@@ -3,6 +3,8 @@
 from flask import Flask, render_template, redirect, url_for
 from core.database import db
 from core.auth import User
+from core.auth_routes import register_auth_routes
+from flask_login import LoginManager
 from core.kernel import load_modules
 import config
 
@@ -27,6 +29,20 @@ def create_app():
 
     # تحميل الوحدات
     load_modules(app, db)
+
+	# app.py - جزء من الدالة create_app()
+	# إعداد Flask-Login
+	login_manager = LoginManager()
+	login_manager.login_view = 'auth.login'
+	login_manager.login_message = "يرجى تسجيل الدخول للوصول إلى هذه الصفحة."
+	login_manager.init_app(app)
+    
+	@login_manager.user_loader
+	def load_user(user_id):
+    return User.query.get(int(user_id))
+
+	# تسجيل مسارات المصادقة
+	register_auth_routes(app, db)
 
     # مسار تجريبي
     @app.route('/')
