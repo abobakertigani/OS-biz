@@ -1,18 +1,32 @@
-# core/kernel.py
-import importlib
+# osbiz/core/kernel.py
+
 import os
-from ai.predict_sales import predict_next_week
+import importlib
+from flask import Flask
+from .database import db
 
+def load_modules(app: Flask, db_instance):
+    """
+    تحميل جميع الوحدات من مجلد modules/
+    كل وحدة يجب أن تحتوي على register_module(app, db)
+    """
+    modules_dir = os.path.join(os.path.dirname(__file__), '..', 'modules')
+    modules_dir = os.path.abspath(modules_dir)
 
-forecast = predict_next_week(store_id)
+    if not os.path.exists(modules_dir):
+        print("تحذير: مجلد الوحدات (modules/) غير موجود.")
+        return
 
-def load_modules(app, db):
-    module_dir = "modules"
-    for folder in os.listdir(module_dir):
-        if os.path.isdir(os.path.join(module_dir, folder)):
+    for folder in os.listdir(modules_dir):
+        folder_path = os.path.join(modules_dir, folder)
+        if os.path.isdir(folder_path) and not folder.startswith('__'):
             try:
-                module = importlib.import_module(f"modules.{folder}")
-                module.register_module(app, db)
-                print(f"تم تحميل الوحدة: {folder}")
+                # استيراد الوحدة
+                module = importlib.import_module(f'modules.{folder}')
+                if hasattr(module, 'register_module'):
+                    module.register_module(app, db_instance)
+                    print(f"✅ تم تحميل الوحدة: {folder}")
+                else:
+                    print(f"⚠️  الوحدة {folder} لا تحتوي على register_module")
             except Exception as e:
-                print(f"خطأ في تحميل {folder}: {e}")
+                print(f"❌ خطأ في تحميل الوحدة {folder}: {e}")
