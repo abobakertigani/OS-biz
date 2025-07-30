@@ -1,0 +1,40 @@
+<!-- modules/restaurant/templates/restaurant/receipt.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>إيصال طلب</title>
+    <style>
+        body { font-family: 'Courier New', monospace; width: 80mm; margin: 0 auto; }
+        .header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 5px; }
+        .items { margin: 10px 0; }
+        .item { display: flex; justify-content: space-between; }
+        .total { font-weight: bold; text-align: right; margin-top: 10px; border-top: 1px dashed #000; padding-top: 5px; }
+        .footer { text-align: center; font-size: 0.8em; margin-top: 10px; color: #555; }
+    </style>
+</head>
+<body onload="window.print()">
+    <div class="header">
+        <h3>مطعمك</h3>
+        <p>تاريخ: {{ order.timestamp.strftime('%Y-%m-%d %H:%M') }}</p>
+        <p>الطاولة: {{ order.table.number }}</p>
+    </div>
+
+    <div class="items">
+        {% for item in items %}
+            <div class="item">
+                <span>{{ item.name }}</span>
+                <span>{{ '%.2f' % item.price }} ر.س</span>
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="total">
+        المجموع: {{ '%.2f' % order.total }} ر.س
+    </div>
+
+    <div class="footer">
+        شكرًا لزيارتكم!<br>
+        هاتف: 0500000000
+    </div>
+</body>
+</html>
