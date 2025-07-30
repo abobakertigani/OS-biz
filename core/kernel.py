@@ -1,6 +1,10 @@
 # core/kernel.py
 import importlib
 import os
+from ai.predict_sales import predict_next_week
+
+
+forecast = predict_next_week(store_id)
 
 def load_modules(app, db):
     module_dir = "modules"
