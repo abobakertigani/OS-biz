@@ -1,16 +1,23 @@
-# modules/restaurant/routes.py (محدث)
+# modules/restaurant/routes.py
 
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify, flash
 from datetime import datetime
 import json
+from flask_login import login_required
 
 def register_routes(app, db):
     bp = Blueprint('restaurant', __name__, url_prefix='/restaurant', template_folder='templates', static_folder='static')
 
-    # استيراد الجداول من قاعدة البيانات
+    # استيراد الجداول
     Table = db.Model.metadata.tables['restaurant_tables']
     MenuItem = db.Model.metadata.tables['restaurant_menu_items']
     Order = db.Model.metadata.tables['restaurant_orders']
+
+    # --- الحماية: جميع مسارات المطعم تتطلب تسجيل دخول ---
+    @bp.before_request
+    @login_required
+    def require_login():
+        pass
 
     # --- الصفحة الرئيسية ---
     @bp.route('/')
@@ -18,19 +25,23 @@ def register_routes(app, db):
         tables = db.session.execute(db.select(Table)).fetchall()
         return render_template('restaurant/pos.html', tables=tables)
 
-    # --- إدارة الطاولات ---
+    # --- عرض الطاولات ---
     @bp.route('/tables')
     def list_tables():
         tables = db.session.execute(db.select(Table)).fetchall()
         return render_template('restaurant/tables.html', tables=tables)
 
+    # --- تفاصيل طاولة ---
     @bp.route('/table/<int:table_id>')
     def view_table_orders(table_id):
         table = db.session.execute(db.select(Table).where(Table.c.id == table_id)).first()
+        if not table:
+            flash("الطاولة غير موجودة", "error")
+            return redirect(url_for('restaurant.list_tables'))
         orders = db.session.execute(db.select(Order).where(Order.c.table_id == table_id)).fetchall()
         return render_template('restaurant/table_orders.html', table=table, orders=orders)
 
-    # --- المنيو ---
+    # --- جلب المنيو ---
     @bp.route('/menu')
     def get_menu():
         items = db.session.execute(db.select(MenuItem)).fetchall()
@@ -39,21 +50,22 @@ def register_routes(app, db):
             for item in items
         ])
 
-    # --- الطلبات ---
+    # --- إدارة الطلبات ---
     @bp.route('/orders', methods=['GET', 'POST'])
     def manage_orders():
         if request.method == 'POST':
             table_id = request.form.get('table_id')
-            items_json = request.form.get('items')  # JSON كنص
+            items_json = request.form.get('items')
             total = request.form.get('total')
 
             try:
                 items = json.loads(items_json)
             except:
-                return jsonify({'error': 'بيانات الطلبات غير صحيحة'}), 400
+                flash("بيانات الطلب غير صحيحة", "error")
+                return redirect(url_for('restaurant.list_tables'))
 
             # إدراج الطلب
-            result = db.session.execute(
+            db.session.execute(
                 db.insert(Order).values(
                     table_id=table_id,
                     items=items_json,
@@ -64,12 +76,13 @@ def register_routes(app, db):
             )
             db.session.commit()
 
-            # تحديث حالة الطاولة إلى "مشغولة"
+            # تحديث حالة الطاولة
             db.session.execute(
                 db.update(Table).where(Table.c.id == table_id).values(status='occupied')
             )
             db.session.commit()
 
+            flash("تم إنشاء الطلب بنجاح", "success")
             return redirect(url_for('restaurant.list_tables'))
 
         # عرض الطلبات
@@ -85,9 +98,9 @@ def register_routes(app, db):
     @bp.route('/order/<int:order_id>/status', methods=['PUT'])
     def update_order_status(order_id):
         data = request.get_json()
-        status = data.get('status')  # pending, cooking, ready, served, paid
-
+        status = data.get('status')
         valid_statuses = ['pending', 'cooking', 'ready', 'served', 'paid']
+
         if status not in valid_statuses:
             return jsonify({'error': 'حالة غير صالحة'}), 400
 
@@ -126,18 +139,18 @@ def register_routes(app, db):
 
         return render_template('restaurant/receipt.html', order=order, items=items)
 
-    # --- تقرير يومي ---
+    # --- التقرير اليومي ---
     @bp.route('/report/daily')
     def daily_report():
         today = datetime.now().strftime('%Y-%m-%d')
-        orders = db.session.execute(
+        result = db.session.execute(
             db.select(Order)
             .where(db.func.date(Order.c.timestamp) == today)
             .where(Order.c.status == 'paid')
         ).fetchall()
 
-        total_sales = sum(o.total for o in orders)
-        num_orders = len(orders)
+        total_sales = sum(o.total for o in result)
+        num_orders = len(result)
 
         return render_template('restaurant/report.html',
                                total_sales=total_sales,
