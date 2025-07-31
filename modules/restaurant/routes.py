@@ -50,7 +50,7 @@ def register_routes(app, db):
             for item in items
         ])
 	
-	# --- دالة: التحقق من توفر المكونات ---
+# --- دالة: التحقق من توفر المكونات ---
 def check_ingredients_availability(db, menu_item_ids_quantities):
     """
     menu_item_ids_quantities: قائمة بأرقام عناصر المنيو (مكررة حسب الكمية)
@@ -106,39 +106,70 @@ def check_ingredients_availability(db, menu_item_ids_quantities):
     return unavailable 
     
     # --- إدارة الطلبات ---
-    @bp.route('/orders', methods=['GET', 'POST'])
-    def manage_orders():
-        if request.method == 'POST':
-            table_id = request.form.get('table_id')
-            items_json = request.form.get('items')
-            total = request.form.get('total')
+@bp.route('/orders', methods=['GET', 'POST'])
+def manage_orders():
+    if request.method == 'POST':
+        table_id = request.form.get('table_id')
+        items_json = request.form.get('items')
+        total = request.form.get('total')
 
-            try:
-                items = json.loads(items_json)
-            except:
-                flash("بيانات الطلب غير صحيحة", "error")
-                return redirect(url_for('restaurant.list_tables'))
-
-            # إدراج الطلب
-            db.session.execute(
-                db.insert(Order).values(
-                    table_id=table_id,
-                    items=items_json,
-                    total=float(total),
-                    status='pending',
-                    timestamp=datetime.now()
-                )
-            )
-            db.session.commit()
-
-            # تحديث حالة الطاولة
-            db.session.execute(
-                db.update(Table).where(Table.c.id == table_id).values(status='occupied')
-            )
-            db.session.commit()
-
-            flash("تم إنشاء الطلب بنجاح", "success")
+        try:
+            items = json.loads(items_json)
+        except:
+            flash("بيانات الطلب غير صحيحة", "error")
             return redirect(url_for('restaurant.list_tables'))
+
+        # --- التحقق من توفر المكونات ---
+        # استخراج قائمة بأرقام عناصر المنيو (مكررة حسب الكمية)
+        menu_item_ids = []
+        for item in items:
+            try:
+                count = int(item.get('quantity', 1))
+            except:
+                count = 1
+            for _ in range(count):
+                menu_item_ids.append(item['id'])
+
+        unavailable = check_ingredients_availability(db, menu_item_ids)
+        if unavailable:
+            msg = "لا يمكن إتمام الطلب بسبب نقص في المخزون:<br>"
+            for u in unavailable:
+                msg += f"- {u['item']}: مطلوب {u['needed']:.2f}، متوفر {u['available']:.2f}<br>"
+            flash(msg, "error")
+            return redirect(url_for('restaurant.list_tables'))
+
+        # --- إنشاء الطلب ---
+        db.session.execute(
+            db.insert(Order).values(
+                table_id=table_id,
+                items=items_json,
+                total=float(total),
+                status='pending',
+                timestamp=datetime.now()
+            )
+        )
+        db.session.commit()
+
+        # --- خصم الكمية من المخزون ---
+        for menu_item_id in menu_item_ids:
+            item_query = db.select(MenuItemIngredient).where(MenuItemIngredient.menu_item_id == menu_item_id)
+            ingredients = db.session.execute(item_query).fetchall()
+            for ing in ingredients:
+                db.session.execute(
+                    db.update(InventoryItem)
+                    .where(InventoryItem.id == ing.inventory_item_id)
+                    .values(quantity=InventoryItem.quantity - ing.quantity_used)
+                )
+        db.session.commit()
+
+        # --- تحديث حالة الطاولة ---
+        db.session.execute(
+            db.update(Table).where(Table.c.id == table_id).values(status='occupied')
+        )
+        db.session.commit()
+
+        flash("تم إنشاء الطلب بنجاح", "success")
+        return redirect(url_for('restaurant.list_tables'))
 
         # عرض الطلبات
         orders = db.session.execute(
