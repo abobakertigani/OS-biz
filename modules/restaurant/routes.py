@@ -243,5 +243,84 @@ def manage_orders():
                                num_orders=num_orders,
                                date=today)
 
+	# --- إدارة المكونات (Ingredients Management) ---
+@bp.route('/ingredients')
+def manage_ingredients():
+    # جلب جميع عناصر المنيو
+    menu_items = db.session.execute(db.select(MenuItem)).fetchall()
+    
+    # جلب جميع عناصر المخزون
+    inventory_items = db.session.execute(db.select(InventoryItem)).fetchall()
+    
+    # جلب جميع المكونات الحالية
+    ingredients = db.session.execute(
+        db.select(MenuItemIngredient)
+        .join(MenuItem, MenuItem.id == MenuItemIngredient.menu_item_id)
+        .join(InventoryItem, InventoryItem.id == MenuItemIngredient.inventory_item_id)
+    ).fetchall()
+
+    return render_template('restaurant/ingredients.html',
+                           menu_items=menu_items,
+                           inventory_items=inventory_items,
+                           ingredients=ingredients)
+
+
+@bp.route('/ingredient/add', methods=['POST'])
+def add_ingredient():
+    menu_item_id = request.form.get('menu_item_id')
+    inventory_item_id = request.form.get('inventory_item_id')
+    quantity_used = request.form.get('quantity_used')
+
+    try:
+        menu_item_id = int(menu_item_id)
+        inventory_item_id = int(inventory_item_id)
+        quantity_used = float(quantity_used)
+        if quantity_used <= 0:
+            raise ValueError
+    except:
+        flash("الرجاء إدخال كميات صحيحة", "error")
+        return redirect(url_for('restaurant.manage_ingredients'))
+
+    # التحقق من أن الارتباط غير مكرر
+    exists = db.session.execute(
+        db.select(MenuItemIngredient)
+        .where(MenuItemIngredient.menu_item_id == menu_item_id)
+        .where(MenuItemIngredient.inventory_item_id == inventory_item_id)
+    ).first()
+
+    if exists:
+        flash("هذا المكون مضاف مسبقًا لهذا الصنف", "info")
+    else:
+        db.session.execute(
+            db.insert(MenuItemIngredient).values(
+                menu_item_id=menu_item_id,
+                inventory_item_id=inventory_item_id,
+                quantity_used=quantity_used
+            )
+        )
+        db.session.commit()
+        flash("تم إضافة المكون بنجاح", "success")
+
+    return redirect(url_for('restaurant.manage_ingredients'))
+
+
+@bp.route('/ingredient/delete/<int:ingredient_id>', methods=['POST'])
+def delete_ingredient(ingredient_id):
+    ingredient = db.session.execute(
+        db.select(MenuItemIngredient).where(MenuItemIngredient.id == ingredient_id)
+    ).first()
+
+    if not ingredient:
+        flash("المكون غير موجود", "error")
+    else:
+        db.session.execute(
+            db.delete(MenuItemIngredient).where(MenuItemIngredient.id == ingredient_id)
+        )
+        db.session.commit()
+        flash("تم حذف المكون من الوصفة", "info")
+
+    return redirect(url_for('restaurant.manage_ingredients'))
+	
+	
     # تسجيل الـ Blueprint
     app.register_blueprint(bp)
