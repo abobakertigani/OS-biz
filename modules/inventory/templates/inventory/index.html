@@ -1,0 +1,94 @@
+<!-- modules/inventory/templates/inventory/index.html -->
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>المخزون</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #ccc; padding: 10px; text-align: right; }
+        th { background: #f0f0f0; }
+        .low { background: #fff3cd; }
+        .expired { background: #f8d7da; color: #721c24; }
+        .btn { margin: 5px; padding: 8px 12px; text-decoration: none; border: none; cursor: pointer; }
+        .btn-add { background: #007bff; color: white; }
+        .btn-edit { background: #ffc107; }
+        .btn-delete { background: #dc3545; color: white; }
+        .search-bar { margin: 15px 0; }
+        .alerts { padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .low-alert { background: #fff3cd; border: 1px solid #ffc107; }
+        .expired-alert { background: #f8d7da; border: 1px solid #dc3545; color: #721c24; }
+    </style>
+</head>
+<body>
+
+    <h1>📦 إدارة المخزون</h1>
+    <a href="/dashboard">العودة للوحة التحكم</a> | <a href="/inventory/add" class="btn btn-add">➕ إضافة عنصر</a>
+
+    <!-- شريط البحث والتصفية -->
+    <div class="search-bar">
+        <form method="GET" style="display: flex; gap: 10px;">
+            <input type="text" name="search" placeholder="ابحث عن عنصر..." value="{{ search }}" style="padding: 8px; width: 200px;">
+            <select name="category" style="padding: 8px;">
+                <option value="">جميع الفئات</option>
+                {% for cat in categories %}
+                <option value="{{ cat }}" {% if category == cat %}selected{% endif %}>{{ cat }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" style="padding: 8px 15px;">بحث</button>
+        </form>
+    </div>
+
+    <!-- تنبيهات -->
+    {% if low_stock_items %}
+    <div class="alerts low-alert">
+        ⚠️ عناصر منخفضة المخزون ({{ loop.length }}):
+        {% for item in low_stock_items %}
+            {{ item.name }} ({{ item.quantity }}/{{ item.min_stock }}),
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if expired_items %}
+    <div class="alerts expired-alert">
+        ❌ عناصر منتهية الصلاحية:
+        {% for item in expired_items %}
+            {{ item.name }} (انتهت: {{ item.expiry_date }}),
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- الجدول -->
+    <table>
+        <tr>
+            <th>الاسم</th>
+            <th>الكمية</th>
+            <th>الوحدة</th>
+            <th>السعر</th>
+            <th>الفئة</th>
+            <th>تاريخ الصلاحية</th>
+            <th>الإجراءات</th>
+        </tr>
+        {% for item in items %}
+        <tr class="{% if item.is_low_stock() %}low{% endif %} {% if item.is_expired() %}expired{% endif %}">
+            <td>{{ item.name }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>{{ item.unit }}</td>
+            <td>{{ '%.2f' % item.price_per_unit }} ر.س</td>
+            <td>{{ item.category or 'غير مصنف' }}</td>
+            <td>{{ item.expiry_date or 'غير محدد' }}</td>
+            <td>
+                <a href="/inventory/edit/{{ item.id }}" class="btn btn-edit">✏️</a>
+                <form method="POST" action="/inventory/delete/{{ item.id }}" style="display: inline;">
+                    <button type="submit" class="btn btn-delete" onclick="return confirm('هل أنت متأكد؟')">🗑️</button>
+                </form>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7">لا توجد عناصر في المخزون</td></tr>
+        {% endfor %}
+    </table>
+
+</body>
+</html>
