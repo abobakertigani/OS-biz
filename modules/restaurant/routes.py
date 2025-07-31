@@ -49,7 +49,62 @@ def register_routes(app, db):
             {'id': item.id, 'name': item.name, 'price': item.price, 'category': item.category}
             for item in items
         ])
+	
+	# --- دالة: التحقق من توفر المكونات ---
+def check_ingredients_availability(db, menu_item_ids_quantities):
+    """
+    menu_item_ids_quantities: قائمة بأرقام عناصر المنيو (مكررة حسب الكمية)
+    مثال: [1, 1, 2] تعني: عنصر 1 مرتين، وعنصر 2 مرة
+    """
+    from sqlalchemy import select
 
+    # جلب جميع عناصر الطلب مع مكوناتها
+    query = select(
+        MenuItemIngredient.menu_item_id,
+        MenuItemIngredient.inventory_item_id,
+        MenuItemIngredient.quantity_used,
+        InventoryItem.quantity.label('current_quantity'),
+        InventoryItem.name.label('item_name')
+    ).join(InventoryItem, MenuItemIngredient.inventory_item_id == InventoryItem.id)
+
+    result = db.session.execute(query).fetchall()
+
+    # تحويل النتائج إلى هيكل سهل المعالجة
+    ingredient_map = {}
+    for row in result:
+        key = (row.menu_item_id, row.inventory_item_id)
+        if key not in ingredient_map:
+            ingredient_map[key] = {
+                'quantity_needed_per_item': row.quantity_used,
+                'current_quantity': row.current_quantity,
+                'item_name': row.item_name
+            }
+
+    # حساب الكمية المطلوبة لكل مكون
+    required = {}
+    for menu_item_id in menu_item_ids_quantities:
+        # جلب مكونات هذا الصنف
+        item_query = select(MenuItemIngredient).where(MenuItemIngredient.menu_item_id == menu_item_id)
+        ingredients = db.session.execute(item_query).fetchall()
+        for ing in ingredients:
+            inv_id = ing.inventory_item_id
+            qty_per = ing.quantity_used
+            required[inv_id] = required.get(inv_id, 0) + qty_per
+
+    # التحقق من التوفر
+    unavailable = []
+    for inv_id, needed in required.items():
+        current = ingredient_map.get((0, inv_id), {}).get('current_quantity', 0)
+        item_name = ingredient_map.get((0, inv_id), {}).get('item_name', 'مكوّن غير معروف')
+        if needed > current:
+            unavailable.append({
+                'item': item_name,
+                'needed': needed,
+                'available': current
+            })
+
+    return unavailable 
+    
     # --- إدارة الطلبات ---
     @bp.route('/orders', methods=['GET', 'POST'])
     def manage_orders():
