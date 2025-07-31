@@ -80,19 +80,30 @@ function addToCart(item) {
         }
 
         function submitOrder() {
-            const tableId = prompt("أدخل رقم الطاولة:");
-            if (!tableId) return;
+    const tableId = prompt("أدخل رقم الطاولة:");
+    if (!tableId) return;
 
-            fetch('/restaurant/orders', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `table_id=${tableId}&items=${encodeURIComponent(JSON.stringify(cart))}&total=${totalSpan.textContent}`
-            }).then(() => {
-                alert('تم إرسال الطلب!');
-                cart = [];
-                renderCart();
-            });
+    // تجميع العناصر مع الكمية
+    const itemsWithQty = [];
+    cart.forEach(item => {
+        const existing = itemsWithQty.find(i => i.id === item.id);
+        if (existing) {
+            existing.quantity += 1;
+        } else {
+            itemsWithQty.push({ ...item, quantity: 1 });
         }
+    });
+
+    fetch('/restaurant/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `table_id=${tableId}&items=${encodeURIComponent(JSON.stringify(itemsWithQty))}&total=${totalSpan.textContent}`
+    }).then(() => {
+        alert('تم إرسال الطلب!');
+        cart = [];
+        renderCart();
+    });
+}
     </script>
 </body>
 </html> 
