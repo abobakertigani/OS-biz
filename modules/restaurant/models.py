@@ -44,6 +44,19 @@ def register_models(db):
         def __repr__(self):
             return f'<Order {self.id} - Table {self.table_id} - {self.status}>'
 
+    # --- علاقة بين عنصر المنيو ومكوناته من المخزون ---
+	class MenuItemIngredient(db.Model):
+   		__tablename__ = 'restaurant_menu_item_ingredients'
+
+  		id = db.Column(db.Integer, primary_key=True)
+   		menu_item_id = db.Column(db.Integer, db.ForeignKey('restaurant_menu_items.id'), nullable=False)
+   		inventory_item_id = db.Column(db.Integer, db.ForeignKey('inventory_items.id'), nullable=False)
+   		quantity_used = db.Column(db.Float, nullable=False)  # كم يستخدم من هذا المكون (مثلاً: 0.2 كجم دقيق)
+
+   		# علاقات
+   		menu_item = db.relationship('MenuItem', backref='ingredients')
+   		inventory_item = db.relationship('InventoryItem', backref='used_in_menu')
+   
     # حفظ النماذج في السياق
     globals()['Table'] = Table
     globals()['MenuItem'] = MenuItem
