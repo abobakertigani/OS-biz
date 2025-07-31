@@ -56,10 +56,15 @@
                 });
             });
 
-        function addToCart(item) {
-            cart.push(item);
-            renderCart();
-        }
+function addToCart(item) {
+    const quantity = prompt(`كم عدد ${item.name}؟`, "1");
+    const qty = parseInt(quantity) || 1;
+
+    for (let i = 0; i < qty; i++) {
+        cart.push(item);
+    }
+    renderCart();
+}
 
         function renderCart() {
             const cartEl = document.getElementById('cart');
