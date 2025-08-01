@@ -17,49 +17,61 @@ def register_routes(app, db):
         pass
 
     # --- عرض جميع العناصر ---
-    @bp.route('/')
-    def index():
-        search = request.args.get('search', '')
-        category = request.args.get('category', '')
+@bp.route('/')
+def index():
+    search = request.args.get('search', '')
+    category = request.args.get('category', '')
 
-        query = db.select(InventoryItem)
+    # بناء الاستعلام
+    query = db.select(InventoryItem)
 
-        if search:
-            query = query.where(InventoryItem.c.name.contains(search))
-        if category:
-            query = query.where(InventoryItem.c.category == category)
+    if search:
+        query = query.where(InventoryItem.c.name.contains(search))
+    if category:
+        query = query.where(InventoryItem.c.category == category)
 
-        items = db.session.execute(query).fetchall()
+    # تنفيذ الاستعلام
+    result = db.session.execute(query).fetchall()
 
-            # تحويل النتائج إلى قاموس مع إضافة الحقول الحسابية
+    # تحويل النتائج إلى قائمة من القواميس
     items = []
     for row in result:
-        item_dict = dict(row._mapping)
-        # إضافة الحقول الحسابية
-        item_dict['is_low_stock'] = row.quantity <= row.min_stock
-        item_dict['is_expired'] = False
+        item_dict = {
+            'id': row.id,
+            'name': row.name,
+            'quantity': row.quantity,
+            'unit': row.unit,
+            'price_per_unit': row.price_per_unit,
+            'category': row.category,
+            'min_stock': row.min_stock,
+            'supplier': row.supplier,
+            'notes': row.notes,
+            'expiry_date': row.expiry_date,
+            'added_date': row.added_date,
+            'is_low_stock': row.quantity <= row.min_stock,  # حقل منطقي محسوب
+            'is_expired': False
+        }
         if row.expiry_date:
             item_dict['is_expired'] = row.expiry_date < datetime.now().date()
         items.append(item_dict)
 
-        # جلب الفئات الفريدة لعرضها في الفلاتر
-        categories = db.session.execute(
-            db.select(InventoryItem.c.category).distinct()
-        ).fetchall()
-        categories = [c.category for c in categories if c.category]
+    # جلب الفئات الفريدة
+    categories_result = db.session.execute(
+        db.select(InventoryItem.c.category).distinct()
+    ).fetchall()
+    categories = [c.category for c in categories_result if c.category]
 
-        # حساب العناصر المنقوصة أو المنتهية
-        low_stock_items = [i for i in items if i.quantity <= i.min_stock]
-        expired_items = [i for i in items if i.expiry_date and i.expiry_date < datetime.now().date()]
+    # ✅ التصحيح: استخدام ['quantity'] و ['min_stock'] بدل .quantity .min_stock
+    low_stock_items = [i for i in items if i['is_low_stock']]
+    expired_items = [i for i in items if i['is_expired']]
 
-        return render_template('inventory/index.html',
-                               items=items,
-                               low_stock_items=low_stock_items,
-                               expired_items=expired_items,
-                               categories=categories,
-                               search=search,
-                               category=category)
-
+    return render_template('inventory/index.html',
+                           items=items,
+                           low_stock_items=low_stock_items,
+                           expired_items=expired_items,
+                           categories=categories,
+                           search=search,
+                           category=category)
     # --- إضافة عنصر جديد ---
     @bp.route('/add', methods=['GET', 'POST'])
     def add():
