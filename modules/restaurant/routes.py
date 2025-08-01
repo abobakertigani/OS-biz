@@ -4,7 +4,6 @@ from flask import Blueprint, render_template, request, redirect, url_for, jsonif
 from datetime import datetime
 import json
 from flask_login import login_required
-from sqlalchemy import select, update, delete, insert
 
 def register_routes(app, db):
     """
@@ -12,6 +11,15 @@ def register_routes(app, db):
     """
     # --- إنشاء Blueprint ---
     bp = Blueprint('restaurant', __name__, url_prefix='/restaurant', template_folder='templates', static_folder='static')
+
+    # --- استيراد الجداول من قاعدة البيانات ---
+    Table = db.Model.metadata.tables['restaurant_tables']
+    MenuItem = db.Model.metadata.tables['restaurant_menu_items']
+    Order = db.Model.metadata.tables['restaurant_orders']
+    try:
+        MenuItemIngredient = db.Model.metadata.tables['restaurant_menu_item_ingredients']
+    except KeyError:
+        MenuItemIngredient = None  # قد لا يكون موجودًا بعد
 
     # --- قبل كل طلب: التأكد من تسجيل الدخول ---
     @bp.before_request
@@ -22,47 +30,33 @@ def register_routes(app, db):
     # --- الصفحة الرئيسية (نقطة البيع) ---
     @bp.route('/')
     def dashboard():
-        Table = db.Model.metadata.tables['restaurant_tables']
-        tables_result = db.session.execute(select(Table))
-        tables = tables_result.fetchall()
+        tables = db.session.execute(db.select(Table)).fetchall()
         return render_template('restaurant/pos.html', tables=tables)
 
     # --- عرض الطاولات ---
     @bp.route('/tables')
     def list_tables():
-        Table = db.Model.metadata.tables['restaurant_tables']
-        tables_result = db.session.execute(select(Table))
-        tables = tables_result.fetchall()
+        tables = db.session.execute(db.select(Table)).fetchall()
         return render_template('restaurant/tables.html', tables=tables)
 
     # --- تفاصيل طاولة ---
     @bp.route('/table/<int:table_id>')
     def view_table_orders(table_id):
-        Table = db.Model.metadata.tables['restaurant_tables']
-        Order = db.Model.metadata.tables['restaurant_orders']
-
-        table_result = db.session.execute(
-            select(Table).where(Table.c.id == table_id)
-        )
-        table = table_result.first()
-
+        table = db.session.execute(
+            db.select(Table).where(Table.c.id == table_id)
+        ).fetchone()
         if not table:
             flash("الطاولة غير موجودة", "error")
             return redirect(url_for('restaurant.list_tables'))
-
-        orders_result = db.session.execute(
-            select(Order).where(Order.c.table_id == table_id)
-        )
-        orders = orders_result.fetchall()
-
+        orders = db.session.execute(
+            db.select(Order).where(Order.c.table_id == table_id)
+        ).fetchall()
         return render_template('restaurant/table_orders.html', table=table, orders=orders)
 
     # --- جلب المنيو ---
     @bp.route('/menu')
     def get_menu():
-        MenuItem = db.Model.metadata.tables['restaurant_menu_items']
-        result = db.session.execute(select(MenuItem))
-        items = result.fetchall()
+        items = db.session.execute(db.select(MenuItem)).fetchall()
         return jsonify([
             {'id': item.id, 'name': item.name, 'price': item.price, 'category': item.category}
             for item in items
@@ -83,13 +77,7 @@ def register_routes(app, db):
                 return redirect(url_for('restaurant.list_tables'))
 
             # --- التحقق من توفر المكونات (إن وُجدت) ---
-            MenuItem = db.Model.metadata.tables['restaurant_menu_items']
-            MenuItemIngredient = db.Model.metadata.tables.get('restaurant_menu_item_ingredients')
-            InventoryItem = db.Model.metadata.tables.get('inventory_items')
-            Order = db.Model.metadata.tables['restaurant_orders']
-            Table = db.Model.metadata.tables['restaurant_tables']
-
-            if MenuItemIngredient and InventoryItem:
+            if MenuItemIngredient is not None:
                 menu_item_ids = []
                 for item in items:
                     try:
@@ -99,29 +87,37 @@ def register_routes(app, db):
                     for _ in range(count):
                         menu_item_ids.append(item['id'])
 
-                # التحقق من توفر المكونات
                 unavailable = []
                 for menu_item_id in menu_item_ids:
-                    ing_result = db.session.execute(
-                        select(MenuItemIngredient)
+                    # جلب مكونات هذا الصنف
+                    ingredients_result = db.session.execute(
+                        db.select(MenuItemIngredient)
                         .where(MenuItemIngredient.c.menu_item_id == menu_item_id)
                     ).fetchall()
 
-                    for ing in ing_result:
-                        inv_item_result = db.session.execute(
-                            select(InventoryItem)
-                            .where(InventoryItem.c.id == ing.inventory_item_id)
-                        ).first()
+                    for row in ingredients_result:
+                        # جلب حالة المخزون لهذا المكون
+                        inv_item = db.session.execute(
+                            db.select(db.Model.metadata.tables['inventory_items'])
+                            .where(db.Model.metadata.tables['inventory_items'].c.id == row.inventory_item_id)
+                        ).fetchone()
 
-                        if inv_item_result and ing.quantity_used > inv_item_result.quantity:
-                            menu_item_result = db.session.execute(
-                                select(MenuItem).where(MenuItem.c.id == menu_item_id)
-                            ).first()
-                            item_name = menu_item_result.name if menu_item_result else 'عنصر غير معروف'
+                        if inv_item is None:
+                            unavailable.append({
+                                'item': 'مكوّن غير معروف',
+                                'needed': row.quantity_used,
+                                'available': 0
+                            })
+                        elif row.quantity_used > inv_item.quantity:
+                            # جلب اسم الصنف من المنيو
+                            menu_item = db.session.execute(
+                                db.select(MenuItem).where(MenuItem.c.id == menu_item_id)
+                            ).fetchone()
+                            item_name = menu_item.name if menu_item else 'عنصر غير معروف'
                             unavailable.append({
                                 'item': item_name,
-                                'needed': ing.quantity_used,
-                                'available': inv_item_result.quantity
+                                'needed': row.quantity_used,
+                                'available': inv_item.quantity
                             })
 
                 if unavailable:
@@ -132,53 +128,64 @@ def register_routes(app, db):
                     return redirect(url_for('restaurant.list_tables'))
 
             # --- إنشاء الطلب ---
-            db.session.execute(
-                insert(Order).values(
-                    table_id=table_id,
-                    items=items_json,
-                    total=float(total),
-                    status='pending',
-                    timestamp=datetime.now()
+            try:
+                db.session.execute(
+                    db.insert(Order).values(
+                        table_id=table_id,
+                        items=items_json,
+                        total=float(total),
+                        status='pending',
+                        timestamp=datetime.now()
+                    )
                 )
-            )
-            db.session.commit()
-
-            # --- خصم الكمية من المخزون ---
-            if MenuItemIngredient and InventoryItem:
-                for menu_item_id in menu_item_ids:
-                    ing_result = db.session.execute(
-                        select(MenuItemIngredient)
-                        .where(MenuItemIngredient.c.menu_item_id == menu_item_id)
-                    ).fetchall()
-
-                    for ing in ing_result:
-                        db.session.execute(
-                            update(InventoryItem)
-                            .where(InventoryItem.c.id == ing.inventory_item_id)
-                            .values(quantity=InventoryItem.c.quantity - ing.quantity_used)
-                        )
                 db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                flash("حدث خطأ أثناء إنشاء الطلب", "error")
+                return redirect(url_for('restaurant.list_tables'))
+
+            # --- خصم الكمية من المخزون (إن وُجدت المكونات) ---
+            if MenuItemIngredient is not None:
+                try:
+                    for menu_item_id in menu_item_ids:
+                        ingredients_result = db.session.execute(
+                            db.select(MenuItemIngredient)
+                            .where(MenuItemIngredient.c.menu_item_id == menu_item_id)
+                        ).fetchall()
+
+                        for row in ingredients_result:
+                            db.session.execute(
+                                db.update(db.Model.metadata.tables['inventory_items'])
+                                .where(db.Model.metadata.tables['inventory_items'].c.id == row.inventory_item_id)
+                                .values(quantity=db.Model.metadata.tables['inventory_items'].c.quantity - row.quantity_used)
+                            )
+                    db.session.commit()
+                except Exception as e:
+                    db.session.rollback()
+                    flash("تم إنشاء الطلب، لكن حدث خطأ في تحديث المخزون", "warning")
 
             # --- تحديث حالة الطاولة ---
-            db.session.execute(
-                update(Table).where(Table.c.id == table_id).values(status='occupied')
-            )
-            db.session.commit()
+            try:
+                db.session.execute(
+                    db.update(Table)
+                    .where(Table.c.id == table_id)
+                    .values(status='occupied')
+                )
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
 
             flash("تم إنشاء الطلب بنجاح", "success")
             return redirect(url_for('restaurant.list_tables'))
 
         # عرض الطلبات
-        Order = db.Model.metadata.tables['restaurant_orders']
-        Table = db.Model.metadata.tables['restaurant_tables']
         orders_result = db.session.execute(
-            select(Order, Table.c.number.label('table_number'))
+            db.select(Order, Table.c.number.label('table_number'))
             .join(Table, Order.c.table_id == Table.c.id)
             .order_by(Order.c.timestamp.desc())
-        )
-        orders = orders_result.fetchall()
+        ).fetchall()
 
-        return render_template('restaurant/orders.html', orders=orders)
+        return render_template('restaurant/orders.html', orders=orders_result)
 
     # --- تحديث حالة الطلب ---
     @bp.route('/order/<int:order_id>/status', methods=['PUT'])
@@ -190,9 +197,8 @@ def register_routes(app, db):
         if status not in valid_statuses:
             return jsonify({'error': 'حالة غير صالحة'}), 400
 
-        Order = db.Model.metadata.tables['restaurant_orders']
         result = db.session.execute(
-            update(Order).where(Order.c.id == order_id).values(status=status)
+            db.update(Order).where(Order.c.id == order_id).values(status=status)
         )
         db.session.commit()
 
@@ -201,15 +207,12 @@ def register_routes(app, db):
 
         # إذا تم الدفع، حرر الطاولة
         if status == 'paid':
-            order_result = db.session.execute(
-                select(Order).where(Order.c.id == order_id)
-            ).first()
-            if order_result:
-                Table = db.Model.metadata.tables['restaurant_tables']
+            order = db.session.execute(
+                db.select(Order).where(Order.c.id == order_id)
+            ).fetchone()
+            if order:
                 db.session.execute(
-                    update(Table)
-                    .where(Table.c.id == order_result.table_id)
-                    .values(status='free')
+                    db.update(Table).where(Table.c.id == order.table_id).values(status='free')
                 )
                 db.session.commit()
 
@@ -218,28 +221,26 @@ def register_routes(app, db):
     # --- طباعة الإيصال ---
     @bp.route('/receipt/<int:order_id>')
     def print_receipt(order_id):
-        Order = db.Model.metadata.tables['restaurant_orders']
-        order_result = db.session.execute(
-            select(Order).where(Order.c.id == order_id)
-        ).first()
+        order = db.session.execute(
+            db.select(Order).where(Order.c.id == order_id)
+        ).fetchone()
 
-        if not order_result:
+        if not order:
             return "الطلب غير موجود", 404
 
         try:
-            items = json.loads(order_result.items)
+            items = json.loads(order.items)
         except:
             items = []
 
-        return render_template('restaurant/receipt.html', order=order_result, items=items)
+        return render_template('restaurant/receipt.html', order=order, items=items)
 
     # --- التقرير اليومي ---
     @bp.route('/report/daily')
     def daily_report():
-        Order = db.Model.metadata.tables['restaurant_orders']
         today = datetime.now().strftime('%Y-%m-%d')
         result = db.session.execute(
-            select(Order)
+            db.select(Order)
             .where(db.func.date(Order.c.timestamp) == today)
             .where(Order.c.status == 'paid')
         ).fetchall()
@@ -255,31 +256,17 @@ def register_routes(app, db):
     # --- إدارة المكونات (وصفات المنيو) ---
     @bp.route('/ingredients')
     def manage_ingredients():
-        MenuItem = db.Model.metadata.tables['restaurant_menu_items']
-        InventoryItem = db.Model.metadata.tables.get('inventory_items')
-        MenuItemIngredient = db.Model.metadata.tables.get('restaurant_menu_item_ingredients')
-
-        menu_items_result = db.session.execute(select(MenuItem))
-        menu_items = menu_items_result.fetchall()
-
-        if not InventoryItem:
-            flash("وحدة المخزون غير متوفرة", "error")
-            inventory_items = []
-        else:
-            inv_result = db.session.execute(select(InventoryItem))
-            inventory_items = inv_result.fetchall()
+        menu_items = db.session.execute(db.select(MenuItem)).fetchall()
+        inventory_table = db.Model.metadata.tables['inventory_items']
+        inventory_items = db.session.execute(db.select(inventory_table)).fetchall()
 
         ingredients = []
-        if MenuItemIngredient and InventoryItem:
-            try:
-                ingredients_result = db.session.execute(
-                    select(MenuItemIngredient)
-                    .join(MenuItem, MenuItem.id == MenuItemIngredient.c.menu_item_id)
-                    .join(InventoryItem, InventoryItem.id == MenuItemIngredient.c.inventory_item_id)
-                )
-                ingredients = ingredients_result.fetchall()
-            except:
-                ingredients = []
+        if MenuItemIngredient is not None:
+            ingredients = db.session.execute(
+                db.select(MenuItemIngredient)
+                .join(MenuItem, MenuItem.id == MenuItemIngredient.c.menu_item_id)
+                .join(inventory_table, inventory_table.c.id == MenuItemIngredient.c.inventory_item_id)
+            ).fetchall()
 
         return render_template('restaurant/ingredients.html',
                                menu_items=menu_items,
@@ -288,9 +275,8 @@ def register_routes(app, db):
 
     @bp.route('/ingredient/add', methods=['POST'])
     def add_ingredient():
-        MenuItemIngredient = db.Model.metadata.tables.get('restaurant_menu_item_ingredients')
-        if not MenuItemIngredient:
-            flash("جدول المكونات غير متوفر", "error")
+        if MenuItemIngredient is None:
+            flash("جدول المكونات غير متوفر بعد. تأكد من تشغيل النظام بشكل صحيح.", "error")
             return redirect(url_for('restaurant.manage_ingredients'))
 
         menu_item_id = request.form.get('menu_item_id')
@@ -303,53 +289,60 @@ def register_routes(app, db):
             quantity_used = float(quantity_used)
             if quantity_used <= 0:
                 raise ValueError
-        except:
+        except Exception as e:
             flash("الرجاء إدخال كميات صحيحة", "error")
             return redirect(url_for('restaurant.manage_ingredients'))
 
         # التحقق من عدم التكرار
-        exists_result = db.session.execute(
-            select(MenuItemIngredient)
+        exists = db.session.execute(
+            db.select(MenuItemIngredient)
             .where(MenuItemIngredient.c.menu_item_id == menu_item_id)
             .where(MenuItemIngredient.c.inventory_item_id == inventory_item_id)
-        ).first()
+        ).fetchone()
 
-        if exists_result:
+        if exists:
             flash("هذا المكون مضاف مسبقًا لهذا الصنف", "info")
         else:
-            db.session.execute(
-                insert(MenuItemIngredient).values(
-                    menu_item_id=menu_item_id,
-                    inventory_item_id=inventory_item_id,
-                    quantity_used=quantity_used
+            try:
+                db.session.execute(
+                    db.insert(MenuItemIngredient).values(
+                        menu_item_id=menu_item_id,
+                        inventory_item_id=inventory_item_id,
+                        quantity_used=quantity_used
+                    )
                 )
-            )
-            db.session.commit()
-            flash("تم إضافة المكون بنجاح", "success")
+                db.session.commit()
+                flash("تم إضافة المكون بنجاح", "success")
+            except Exception as e:
+                db.session.rollback()
+                flash("فشل في إضافة المكون", "error")
 
         return redirect(url_for('restaurant.manage_ingredients'))
 
     @bp.route('/ingredient/delete/<int:ingredient_id>', methods=['POST'])
     def delete_ingredient(ingredient_id):
-        MenuItemIngredient = db.Model.metadata.tables.get('restaurant_menu_item_ingredients')
-        if not MenuItemIngredient:
+        if MenuItemIngredient is None:
             flash("جدول المكونات غير متوفر", "error")
             return redirect(url_for('restaurant.manage_ingredients'))
 
-        ingredient_result = db.session.execute(
-            select(MenuItemIngredient).where(MenuItemIngredient.c.id == ingredient_id)
-        ).first()
+        ingredient = db.session.execute(
+            db.select(MenuItemIngredient).where(MenuItemIngredient.c.id == ingredient_id)
+        ).fetchone()
 
-        if not ingredient_result:
+        if not ingredient:
             flash("المكون غير موجود", "error")
         else:
-            db.session.execute(
-                delete(MenuItemIngredient).where(MenuItemIngredient.c.id == ingredient_id)
-            )
-            db.session.commit()
-            flash("تم حذف المكون من الوصفة", "info")
+            try:
+                db.session.execute(
+                    db.delete(MenuItemIngredient).where(MenuItemIngredient.c.id == ingredient_id)
+                )
+                db.session.commit()
+                flash("تم حذف المكون من الوصفة", "info")
+            except Exception as e:
+                db.session.rollback()
+                flash("فشل في حذف المكون", "error")
 
         return redirect(url_for('restaurant.manage_ingredients'))
 
     # --- تسجيل الـ Blueprint في التطبيق ---
-    app.register_blueprint(bp)
+    app.register_blueprint(bp) 
