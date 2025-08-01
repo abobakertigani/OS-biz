@@ -31,6 +31,17 @@ def register_routes(app, db):
 
         items = db.session.execute(query).fetchall()
 
+            # تحويل النتائج إلى قاموس مع إضافة الحقول الحسابية
+    items = []
+    for row in result:
+        item_dict = dict(row._mapping)
+        # إضافة الحقول الحسابية
+        item_dict['is_low_stock'] = row.quantity <= row.min_stock
+        item_dict['is_expired'] = False
+        if row.expiry_date:
+            item_dict['is_expired'] = row.expiry_date < datetime.now().date()
+        items.append(item_dict)
+
         # جلب الفئات الفريدة لعرضها في الفلاتر
         categories = db.session.execute(
             db.select(InventoryItem.c.category).distinct()
