@@ -54,6 +54,15 @@ def create_app():
 
     return app
 
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    if current_user.role == 'admin':
+        return render_template('dashboard/admin.html', user=current_user)
+    elif current_user.role in ['cashier', 'waiter']:
+        return redirect(url_for('restaurant.dashboard'))
+
+
 # تشغيل التطبيق
 if __name__ == '__main__':
     app = create_app()
