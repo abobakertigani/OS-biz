@@ -218,36 +218,38 @@ def add_menu_item():
     return render_template('restaurant/add_menu_item.html')
     
     # --- تحديث حالة الطلب ---
-    @bp.route('/order/<int:order_id>/status', methods=['PUT'])
-    def update_order_status(order_id):
-        data = request.get_json()
-        status = data.get('status')
-        valid_statuses = ['pending', 'cooking', 'ready', 'served', 'paid']
+@bp.route('/order/<int:order_id>/status', methods=['PUT'])
+def update_order_status(order_id):
+    data = request.get_json()
+    status = data.get('status')
+    valid_statuses = ['pending', 'cooking', 'ready', 'served', 'paid']
 
-        if status not in valid_statuses:
-            return jsonify({'error': 'حالة غير صالحة'}), 400
+    if status not in valid_statuses:
+        return jsonify({'error': 'حالة غير صالحة'}), 400
 
-        result = db.session.execute(
-            db.update(Order).where(Order.c.id == order_id).values(status=status)
+    # ✅ تحقق من وجود الطلب أولًا
+    order_result = db.session.execute(
+        db.select(Order).where(Order.c.id == order_id)
+    ).fetchone()
+
+    if not order_result:
+        return jsonify({'error': 'الطلب غير موجود'}), 404
+
+    # ✅ التحديث
+    db.session.execute(
+        db.update(Order).where(Order.c.id == order_id).values(status=status)
+    )
+    db.session.commit()
+
+    # إذا تم الدفع، حرر الطاولة
+    if status == 'paid':
+        db.session.execute(
+            db.update(Table).where(Table.c.id == order_result.table_id).values(status='free')
         )
         db.session.commit()
 
-        if result.rowcount == 0:
-            return jsonify({'error': 'الطلب غير موجود'}), 404
-
-        # إذا تم الدفع، حرر الطاولة
-        if status == 'paid':
-            order = db.session.execute(
-                db.select(Order).where(Order.c.id == order_id)
-            ).fetchone()
-            if order:
-                db.session.execute(
-                    db.update(Table).where(Table.c.id == order.table_id).values(status='free')
-                )
-                db.session.commit()
-
-        return jsonify({'success': True})
-
+    return jsonify({'success': True})
+    
     # --- طباعة الإيصال ---
     @bp.route('/receipt/<int:order_id>')
     def print_receipt(order_id):
