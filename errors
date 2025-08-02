@@ -20,8 +20,28 @@ Traceback (most recent call last):
   File "C:\Users\AL Gadi\AppData\Local\Programs\Python\Python311\Lib\site-packages\flask_login\utils.py", line 290, in decorated_view
     return current_app.ensure_sync(func)(*args, **kwargs)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "c:\Users\AL Gadi\Downloads\OS-biz\modules\reports\routes.py", line 45, in dashboard
-    if MenuItemIngredient:
-  File "C:\Users\AL Gadi\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\sql\elements.py", line 756, in __bool__
-    raise TypeError("Boolean value of this clause is not defined")
-TypeError: Boolean value of this clause is not defined
+  File "c:\Users\AL Gadi\Downloads\OS-biz\modules\reports\routes.py", line 49, in dashboard
+    db.select(Order.c.items)
+  File "C:\Users\AL Gadi\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\sql\_selectable_constructors.py", line 537, in select
+    return Select(*entities)
+           ^^^^^^^^^^^^^^^^^
+  File "C:\Users\AL Gadi\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\sql\selectable.py", line 5351, in __init__
+    self._raw_columns = [
+                        ^
+  File "C:\Users\AL Gadi\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\sql\selectable.py", line 5352, in <listcomp>
+    coercions.expect(
+  File "C:\Users\AL Gadi\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\sql\coercions.py", line 332, in expect
+    return lambdas.LambdaElement(
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\AL Gadi\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\sql\lambdas.py", line 213, in __init__
+    rec = self._retrieve_tracker_rec(fn, apply_propagate_attrs, opts)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\AL Gadi\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\sql\lambdas.py", line 229, in _retrieve_tracker_rec
+    tracker = AnalyzedCode.get(
+              ^^^^^^^^^^^^^^^^^
+  File "C:\Users\AL Gadi\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\sql\lambdas.py", line 750, in get
+    cls._fns[fn.__code__] = analyzed = AnalyzedCode(
+                                       ^^^^^^^^^^^^^
+  File "C:\Users\AL Gadi\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\sql\lambdas.py", line 757, in __init__
+    raise exc.ArgumentError(
+sqlalchemy.exc.ArgumentError: Method <bound method ColumnCollection.items of <sqlalchemy.sql.base.ReadOnlyColumnCollection object at 0x000001DF0E9F27F0>> may not be passed as a SQL expression
