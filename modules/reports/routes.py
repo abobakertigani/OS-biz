@@ -5,6 +5,18 @@ from flask_login import login_required  # استيراد login_required
 from datetime import datetime, timedelta
 from sqlalchemy import func
 
+# دالة لتحويل الأرقام الإنجليزية إلى عربية
+def to_arabic_numerals(num_str):
+    arabic_digits = "٠١٢٣٤٥٦٧٨٩"
+    return ''.join(arabic_digits[int(d)] for d in num_str if d.isdigit())
+
+# أسماء الأشهر بالعربية
+arabic_months = [
+    "يناير", "فبراير", "مارس", "أبريل",
+    "مايو", "يونيو", "يوليو", "أغسطس",
+    "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"
+]
+
 def register_routes(app, db):
     bp = Blueprint('reports', __name__, url_prefix='/reports', template_folder='templates')
 
@@ -77,12 +89,23 @@ if MenuItemIngredient is not None:
     # تقدير الأرباح
     net_profit = round(daily_sales_result * 0.6, 2)  # هامش ربح 40%
 
+    @bp.route('/')
+@login_required
+def dashboard():
+    # ... (الكود السابق)
+
+    today = datetime.now().date()
+
+    # --- تحويل التاريخ إلى عربي ---
+    arabic_date = f"{to_arabic_numerals(str(today.day))} {arabic_months[today.month - 1]} {to_arabic_numerals(str(today.year))}"
+
     return render_template('reports/dashboard.html',
                            daily_sales=daily_sales_result,
                            monthly_sales=monthly_sales_result,
                            top_items=top_items,
                            low_stock_items=low_stock_items,
                            net_profit=net_profit,
-                           date=today)
-    # ✅ تسجيل الـ Blueprint
+                           date=today,
+                           arabic_date=arabic_date)    # ✅ تسجيل الـ Blueprint
+    
     app.register_blueprint(bp)
