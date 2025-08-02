@@ -41,7 +41,9 @@ def register_routes(app, db):
 
         # أكثر العناصر مبيعًا (تقديري)
         top_items = []
-        if MenuItemIngredient:
+        MenuItemIngredient = db.Model.metadata.tables.get('restaurant_menu_item_ingredients')
+
+		if MenuItemIngredient is not None:
             orders = db.session.execute(
                 db.select(Order.c.items)
                 .where(func.date(Order.c.timestamp) == today)
