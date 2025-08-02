@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <title>إضافة عنصر للمنيو</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        label { display: block; margin: 10px 0 5px; }
+        input, select, button { padding: 8px; width: 100%; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h2>➕ إضافة عنصر إلى المنيو</h2>
+    <a href="/restaurant">العودة</a>
+
+    <form method="POST">
+        <label>الاسم *</label>
+        <input type="text" name="name" required>
+
+        <label>السعر *</label>
+        <input type="number" step="0.01" name="price" required>
+
+        <label>الفئة</label>
+        <input type="text" name="category" list="categories">
+        <datalist id="categories">
+            <option value="طعام">
+            <option value="مشروبات">
+            <option value="حلويات">
+        </datalist>
+
+        <button type="submit">إضافة</button>
+    </form>
+</body>
+</html>
