@@ -1,5 +1,5 @@
 # modules/reports/routes.py
-
+import json
 from flask import Blueprint, render_template
 from datetime import datetime, timedelta
 from sqlalchemy import func
