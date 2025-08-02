@@ -40,24 +40,26 @@
         </form>
     </div>
 
-    <!-- تنبيهات -->
-    {% if low_stock_items %}
+<!-- تنبيهات -->
+{% if low_stock_items %}
+    {% set count = low_stock_items|length %}
     <div class="alerts low-alert">
-        ⚠️ عناصر منخفضة المخزون ({{ loop.length }}):
+        ⚠️ عناصر منخفضة المخزون ({{ count }}):
         {% for item in low_stock_items %}
-            {{ item.name }} ({{ item.quantity }}/{{ item.min_stock }}),
+            {{ item.name }} ({{ item.quantity }}/{{ item.min_stock }}){% if not loop.last %}, {% endif %}
         {% endfor %}
     </div>
-    {% endif %}
+{% endif %}
 
-    {% if expired_items %}
+{% if expired_items %}
+    {% set count = expired_items|length %}
     <div class="alerts expired-alert">
-        ❌ عناصر منتهية الصلاحية:
+        ❌ عناصر منتهية الصلاحية ({{ count }}):
         {% for item in expired_items %}
-            {{ item.name }} (انتهت: {{ item.expiry_date }}),
+            {{ item.name }} (انتهت: {{ item.expiry_date }}){% if not loop.last %}, {% endif %}
         {% endfor %}
     </div>
-    {% endif %}
+{% endif %}
 
     <!-- الجدول -->
     <table>
