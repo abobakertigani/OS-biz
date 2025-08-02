@@ -187,6 +187,36 @@ def register_routes(app, db):
 
         return render_template('restaurant/orders.html', orders=orders_result)
 
+@bp.route('/menu/add', methods=['GET', 'POST'])
+def add_menu_item():
+    if request.method == 'POST':
+        name = request.form.get('name')
+        price = request.form.get('price')
+        category = request.form.get('category')
+
+        try:
+            price = float(price)
+        except:
+            flash("السعر يجب أن يكون رقمًا", "error")
+            return redirect(url_for('restaurant.add_menu_item'))
+
+        if not name:
+            flash("الاسم مطلوب", "error")
+            return redirect(url_for('restaurant.add_menu_item'))
+
+        db.session.execute(
+            db.insert(MenuItem).values(
+                name=name,
+                price=price,
+                category=category
+            )
+        )
+        db.session.commit()
+        flash(f"تم إضافة '{name}' إلى المنيو", "success")
+        return redirect(url_for('restaurant.dashboard'))
+
+    return render_template('restaurant/add_menu_item.html')
+    
     # --- تحديث حالة الطلب ---
     @bp.route('/order/<int:order_id>/status', methods=['PUT'])
     def update_order_status(order_id):
