@@ -42,13 +42,17 @@ def dashboard():
     ).scalar() or 0
 
     # أكثر العناصر مبيعًا (تقديري)
-    top_items = []
-    if MenuItemIngredient is not None:
+top_items = []
+if MenuItemIngredient is not None:
+    try:
         orders = db.session.execute(
-            db.select(Order.c.items)
+            db.select(getattr(Order.c, 'items'))  # ✅ تصحيح: استخدام getattr
             .where(func.date(Order.c.timestamp) == today)
             .where(Order.c.status == 'paid')
         ).fetchall()
+    except Exception as e:
+        print(f"Error fetching orders: {e}")
+        orders = []
 
         item_counter = {}
         for order in orders:
